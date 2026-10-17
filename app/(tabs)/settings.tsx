@@ -17,7 +17,7 @@ export default function SettingsScreen() {
   const scheme = useColorScheme();
   const colors = COLORS[scheme === 'dark' ? 'dark' : 'light'];
   const { lang, setLang, t } = useLanguage();
-  const apiUrl = (Constants.expoConfig?.extra?.apiUrl as string) || 'https://tb-checker-api.vercel.app';
+  const apiUrl = (Constants.expoConfig?.extra?.apiUrl as string) || 'https://tbchecker-appi.vercel.app';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>

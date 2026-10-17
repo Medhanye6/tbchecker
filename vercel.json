@@ -1,5 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "echo \"skip install (api is dependency-free)\"",
+  "buildCommand": "echo \"skip build (static public only)\"",
   "outputDirectory": "public",
   "functions": {
     "api/**/*.js": {

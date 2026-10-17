@@ -1,30 +1,13 @@
 import Constants from 'expo-constants';
+import { fetchTelebirrReceipt, type TelebirrReceipt, type FetchResult } from './telebirr';
 
 const API_URL =
   (Constants.expoConfig?.extra?.apiUrl as string) ||
   'https://tbchecker-appi.vercel.app';
 
-export interface TelebirrReceipt {
-  payerName: string;
-  payerTelebirrNo: string;
-  creditedPartyName: string;
-  creditedPartyAccountNo: string;
-  transactionStatus: string;
-  receiptNo: string;
-  paymentDate: string;
-  settledAmount: string;
-  serviceFee: string;
-  serviceFeeVAT: string;
-  totalPaidAmount: string;
-  bankName: string;
-  customerNote: string;
-}
+export type { TelebirrReceipt };
 
-export interface VerifyResponse {
-  success: boolean;
-  data?: TelebirrReceipt;
-  error?: string;
-}
+export type VerifyResponse = FetchResult;
 
 export interface OcrResult {
   success: boolean;
@@ -35,17 +18,7 @@ export interface OcrResult {
 }
 
 export async function verifyTelebirr(txid: string): Promise<VerifyResponse> {
-  try {
-    const res = await fetch(`${API_URL}/api/verify-telebirr`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reference: txid.trim().toUpperCase() }),
-    });
-    const data = await res.json();
-    return data;
-  } catch {
-    return { success: false, error: 'network_error' };
-  }
+  return fetchTelebirrReceipt(txid);
 }
 
 export async function ocrImage(base64: string): Promise<OcrResult> {

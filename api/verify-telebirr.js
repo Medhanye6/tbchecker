@@ -1,4 +1,16 @@
-const cheerio = require('cheerio');
+function stripTags(s) {
+  return String(s).replace(/<[^>]*>/g, '');
+}
+
+function extractCells(html) {
+  const cells = [];
+  const re = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    cells.push(stripTags(m[1]).replace(/\s+/g, ' ').trim());
+  }
+  return cells;
+}
 
 function extractSettledAmountRegex(html) {
   const patterns = [
@@ -42,65 +54,72 @@ function extractDateRegex(html) {
 function extractWithRegex(html, labelPattern) {
   const escaped = labelPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(
-    `<td[^>]*>\\s*${escaped}\\s*<\\/td>\\s*<td[^>]*>\\s*([^<]+)`,
+    `<td[^>]*>\\s*${escaped}\\s*(?:<\\/td>\\s*)?<td[^>]*>\\s*([^<]+)`,
     'i'
   );
   const m = html.match(pattern);
   return m ? m[1].replace(/<[^>]*>/g, '').trim() : null;
 }
 
-function extractNextCellText($, labels) {
+function extractNextCellText(html, labels) {
+  const cells = extractCells(html);
   for (const label of labels) {
-    const cells = $('td').filter(function () {
-      return $(this).text().includes(label);
-    });
-    if (cells.length > 0) {
-      const value = cells.first().next('td').text().trim();
-      if (value) return value.replace(/\s+/g, ' ');
+    const idx = cells.findIndex((c) => c.includes(label));
+    if (idx !== -1 && idx + 1 < cells.length) {
+      const value = cells[idx + 1];
+      if (value) return value;
     }
   }
   return '';
 }
 
-function scrapeTelebirrReceipt(html) {
-  const $ = cheerio.load(html);
+function extractReceiptNoFallback(html) {
+  const re = /<td[^>]*class="[^"]*receipttableTd2[^"]*"[^>]*>([\s\S]*?)<\/td>/gi;
+  const vals = [];
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    vals.push(stripTags(m[1]).replace(/\s+/g, ' ').trim());
+  }
+  return vals.length > 1 ? vals[1] : vals[0] || '';
+}
 
+function extractPaymentDateFallback(html) {
+  const cells = extractCells(html);
+  const found = cells.find((c) => c.includes('-202'));
+  return found || '';
+}
+
+function scrapeTelebirrReceipt(html) {
   const getSettledAmount = () => {
     const regexAmount = extractSettledAmountRegex(html);
     if (regexAmount) return regexAmount;
-    return extractNextCellText($, ['የተከፈለው መጠን', 'Settled Amount']);
+    return extractNextCellText(html, ['የተከፈለው መጠን', 'Settled Amount']);
   };
 
   const getServiceFee = () => {
     const regexFee = extractServiceFeeRegex(html);
     if (regexFee) return regexFee;
-    return extractNextCellText($, ['የአገልግሎት ክፍያ', 'Service fee']);
+    return extractNextCellText(html, ['የአገልግሎት ክፍያ', 'Service fee']);
   };
 
   const getReceiptNo = () => {
     const regexReceipt = extractReceiptNoRegex(html);
     if (regexReceipt) return regexReceipt;
-    return $('td.receipttableTd.receipttableTd2').eq(1).text().trim();
+    return extractReceiptNoFallback(html);
   };
 
   const getPaymentDate = () => {
     const regexDate = extractDateRegex(html);
     if (regexDate) return regexDate;
-    return $('.receipttableTd')
-      .filter(function () {
-        return $(this).text().includes('-202');
-      })
-      .first()
-      .text()
-      .trim();
+    return extractPaymentDateFallback(html);
   };
 
   let creditedPartyName =
     extractWithRegex(html, 'የገንዘብ ተቀባይ ስም/Credited Party name') ||
-    extractNextCellText($, ['የገንዘብ ተቀባይ ስም/Credited Party name', 'Credited Party name']);
+    extractNextCellText(html, ['የገንዘብ ተቀባይ ስም/Credited Party name', 'Credited Party name']);
   let creditedPartyAccountNo =
     extractWithRegex(html, 'የገንዘብ ተቀባይ ቴሌብር ቁ./Credited party account no') ||
-    extractNextCellText($, [
+    extractNextCellText(html, [
       'የገንዘብ ተቀባይ ቴሌብር ቁ./Credited party account no',
       'Credited party account no',
     ]);
@@ -108,7 +127,7 @@ function scrapeTelebirrReceipt(html) {
 
   const bankAccountNumberRaw =
     extractWithRegex(html, 'የባንክ አካውንት ቁጥር/Bank account number') ||
-    extractNextCellText($, ['የባንክ አካውንት ቁጥር/Bank account number', 'Bank account number']);
+    extractNextCellText(html, ['የባንክ አካውንት ቁጥር/Bank account number', 'Bank account number']);
 
   if (bankAccountNumberRaw) {
     bankName = creditedPartyName;
@@ -122,10 +141,10 @@ function scrapeTelebirrReceipt(html) {
   return {
     payerName:
       extractWithRegex(html, 'የከፋይ ስም/Payer Name') ||
-      extractNextCellText($, ['የከፋይ ስም/Payer Name', 'Payer Name']),
+      extractNextCellText(html, ['የከፋይ ስም/Payer Name', 'Payer Name']),
     payerTelebirrNo:
       extractWithRegex(html, 'የከፋይ ቴሌብር ቁ./Payer telebirr no.') ||
-      extractNextCellText($, [
+      extractNextCellText(html, [
         'የከፋይ ቴሌብር ቁ./Payer telebirr no.',
         'Payer telebirr no.',
         'Payer Telebirr No.',
@@ -134,7 +153,7 @@ function scrapeTelebirrReceipt(html) {
     creditedPartyAccountNo,
     transactionStatus:
       extractWithRegex(html, 'የክፍያው ሁኔታ/transaction status') ||
-      extractNextCellText($, [
+      extractNextCellText(html, [
         'የክፍያው ሁኔታ/transaction status',
         'Transaction status',
         'transaction status',
@@ -145,14 +164,14 @@ function scrapeTelebirrReceipt(html) {
     serviceFee: getServiceFee(),
     serviceFeeVAT:
       extractWithRegex(html, 'የአገልግሎት ክፍያ ተ.እ.ታ/Service fee VAT') ||
-      extractNextCellText($, ['የአገልግሎት ክፍያ ተ.እ.ታ/Service fee VAT', 'Service fee VAT']),
+      extractNextCellText(html, ['የአገልግሎት ክፍያ ተ.እ.ታ/Service fee VAT', 'Service fee VAT']),
     totalPaidAmount:
       extractWithRegex(html, 'ጠቅላላ የተከፈለ/Total Paid Amount') ||
-      extractNextCellText($, ['ጠቅላላ የተከፈለ/Total Paid Amount', 'Total Paid Amount']),
+      extractNextCellText(html, ['ጠቅላላ የተከፈለ/Total Paid Amount', 'Total Paid Amount']),
     bankName,
     customerNote:
       extractWithRegex(html, 'የደንበኛ መልዕክት/Customer Note') ||
-      extractNextCellText($, ['የደንበኛ መልዕክት/Customer Note', 'Customer Note']),
+      extractNextCellText(html, ['የደንበኛ መልዕክት/Customer Note', 'Customer Note']),
   };
 }
 
@@ -218,15 +237,24 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ success: true, data: receipt });
   } catch (err) {
     clearTimeout(timeout);
+    const cause =
+      err && err.cause
+        ? err.cause.code || err.cause.message || String(err.cause)
+        : '';
     if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
       return res.status(504).json({
         success: false,
         error: 'Telebirr endpoint timed out. It may be blocking non-Ethiopian IPs.',
+        cause,
       });
     }
     return res.status(502).json({
       success: false,
       error: (err && err.message) || 'Failed to fetch receipt from Telebirr.',
+      cause,
     });
   }
 };
+
+module.exports.scrapeTelebirrReceipt = scrapeTelebirrReceipt;
+module.exports.isValidReceipt = isValidReceipt;
