@@ -54,7 +54,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://tb-checker-api.vercel.app"
+      "apiUrl": "https://tbchecker-appi.vercel.app"
     }
   }
 }

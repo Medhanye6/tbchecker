@@ -68,7 +68,7 @@ function extractWithRegex(html: string, labelPattern: string): string | null {
 
 function extractNextCellText($: cheerio.CheerioAPI, labels: string[]): string {
   for (const label of labels) {
-    const cells = $('td').filter((_, el) => $(el).text().includes(label));
+    const cells = $('td').filter((_: number, el: any) => $(el).text().includes(label));
     if (cells.length > 0) {
       const value = cells.first().next('td').text().trim();
       if (value) return value.replace(/\s+/g, ' ');
@@ -102,7 +102,7 @@ function scrapeTelebirrReceipt(html: string): TelebirrReceipt {
     const regexDate = extractDateRegex(html);
     if (regexDate) return regexDate;
     return $('.receipttableTd')
-      .filter((_, el) => $(el).text().includes('-202'))
+      .filter((_: number, el: any) => $(el).text().includes('-202'))
       .first()
       .text()
       .trim();

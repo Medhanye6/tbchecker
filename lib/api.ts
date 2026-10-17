@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 
 const API_URL =
   (Constants.expoConfig?.extra?.apiUrl as string) ||
-  'https://tb-checker-api.vercel.app';
+  'https://tbchecker-appi.vercel.app';
 
 export interface TelebirrReceipt {
   payerName: string;

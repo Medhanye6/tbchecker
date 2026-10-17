@@ -93,7 +93,7 @@ Return ONLY valid JSON, no markdown, no code blocks.`,
       });
     }
 
-    const result = await response.json();
+    const result: any = await response.json();
     const content = result?.choices?.[0]?.message?.content ?? '';
 
     let parsed: { transaction_number?: string; found_label?: string; all_text?: string };

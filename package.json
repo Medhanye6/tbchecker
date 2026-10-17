@@ -26,11 +26,14 @@
     "react-dom": "^19.3.1",
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1",
-    "react-native-screens": "~4.30.0"
+    "react-native-screens": "~4.30.0",
+    "cheerio": "^1.0.0"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "@vercel/node": "^3.2.0",
+    "@types/node": "^20.0.0"
   },
   "scripts": {
     "start": "expo start",
