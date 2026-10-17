@@ -1,3 +1,3 @@
-export default function handler(req: any, res: any) {
+module.exports = function handler(req, res) {
   res.status(200).json({ ok: true, time: new Date().toISOString(), method: req.method });
-}
+};

@@ -1,23 +1,6 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as cheerio from 'cheerio';
+const cheerio = require('cheerio');
 
-interface TelebirrReceipt {
-  payerName: string;
-  payerTelebirrNo: string;
-  creditedPartyName: string;
-  creditedPartyAccountNo: string;
-  transactionStatus: string;
-  receiptNo: string;
-  paymentDate: string;
-  settledAmount: string;
-  serviceFee: string;
-  serviceFeeVAT: string;
-  totalPaidAmount: string;
-  bankName: string;
-  customerNote: string;
-}
-
-function extractSettledAmountRegex(html: string): string | null {
+function extractSettledAmountRegex(html) {
   const patterns = [
     /የተከፈለው\s+መጠን\/Settled\s+Amount.*?<\/td>\s*<td[^>]*>\s*([\d,]+(?:\.\d+)?\s+Birr)/is,
     /<tr[^>]*>.*?የተከፈለው\s+መጠን\/Settled\s+Amount.*?<td[^>]*>\s*([\d,]+(?:\.\d+)?\s+Birr)/is,
@@ -31,7 +14,7 @@ function extractSettledAmountRegex(html: string): string | null {
   return null;
 }
 
-function extractServiceFeeRegex(html: string): string | null {
+function extractServiceFeeRegex(html) {
   const patterns = [
     /የአገልግሎት\s+ክፍያ\/Service\s+fee(?!\s+ተ\.እ\.ታ).*?<\/td>\s*<td[^>]*>\s*([\d,]+(?:\.\d+)?\s+Birr)/is,
     /<tr[^>]*>.*?የአገልግሎት\s+ክፍያ\/Service\s+fee(?!\s+ተ\.እ\.ታ).*?<td[^>]*>\s*([\d,]+(?:\.\d+)?\s+Birr)/is,
@@ -44,19 +27,19 @@ function extractServiceFeeRegex(html: string): string | null {
   return null;
 }
 
-function extractReceiptNoRegex(html: string): string | null {
+function extractReceiptNoRegex(html) {
   const m = html.match(
     /<td[^>]*class="[^"]*receipttableTd[^"]*receipttableTd2[^"]*"[^>]*>\s*([A-Z0-9]+)\s*<\/td>/i
   );
   return m ? m[1].trim() : null;
 }
 
-function extractDateRegex(html: string): string | null {
+function extractDateRegex(html) {
   const m = html.match(/(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:\d{2})/);
   return m ? m[1].trim() : null;
 }
 
-function extractWithRegex(html: string, labelPattern: string): string | null {
+function extractWithRegex(html, labelPattern) {
   const escaped = labelPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(
     `<td[^>]*>\\s*${escaped}\\s*<\\/td>\\s*<td[^>]*>\\s*([^<]+)`,
@@ -66,9 +49,11 @@ function extractWithRegex(html: string, labelPattern: string): string | null {
   return m ? m[1].replace(/<[^>]*>/g, '').trim() : null;
 }
 
-function extractNextCellText($: cheerio.CheerioAPI, labels: string[]): string {
+function extractNextCellText($, labels) {
   for (const label of labels) {
-    const cells = $('td').filter((_: number, el: any) => $(el).text().includes(label));
+    const cells = $('td').filter(function () {
+      return $(this).text().includes(label);
+    });
     if (cells.length > 0) {
       const value = cells.first().next('td').text().trim();
       if (value) return value.replace(/\s+/g, ' ');
@@ -77,32 +62,34 @@ function extractNextCellText($: cheerio.CheerioAPI, labels: string[]): string {
   return '';
 }
 
-function scrapeTelebirrReceipt(html: string): TelebirrReceipt {
+function scrapeTelebirrReceipt(html) {
   const $ = cheerio.load(html);
 
-  const getSettledAmount = (): string => {
+  const getSettledAmount = () => {
     const regexAmount = extractSettledAmountRegex(html);
     if (regexAmount) return regexAmount;
     return extractNextCellText($, ['የተከፈለው መጠን', 'Settled Amount']);
   };
 
-  const getServiceFee = (): string => {
+  const getServiceFee = () => {
     const regexFee = extractServiceFeeRegex(html);
     if (regexFee) return regexFee;
     return extractNextCellText($, ['የአገልግሎት ክፍያ', 'Service fee']);
   };
 
-  const getReceiptNo = (): string => {
+  const getReceiptNo = () => {
     const regexReceipt = extractReceiptNoRegex(html);
     if (regexReceipt) return regexReceipt;
     return $('td.receipttableTd.receipttableTd2').eq(1).text().trim();
   };
 
-  const getPaymentDate = (): string => {
+  const getPaymentDate = () => {
     const regexDate = extractDateRegex(html);
     if (regexDate) return regexDate;
     return $('.receipttableTd')
-      .filter((_: number, el: any) => $(el).text().includes('-202'))
+      .filter(function () {
+        return $(this).text().includes('-202');
+      })
       .first()
       .text()
       .trim();
@@ -169,16 +156,18 @@ function scrapeTelebirrReceipt(html: string): TelebirrReceipt {
   };
 }
 
-function isValidReceipt(r: TelebirrReceipt): boolean {
+function isValidReceipt(r) {
   return !!(r.receiptNo && r.payerName && r.transactionStatus);
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  const reference = (req.body?.reference || '').toString().trim().toUpperCase();
+  const reference = String((req.body && req.body.reference) || '')
+    .trim()
+    .toUpperCase();
   if (!reference || !/^[A-Z0-9]{10}$/.test(reference)) {
     return res.status(400).json({
       success: false,
@@ -223,16 +212,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const receipt = scrapeTelebirrReceipt(html);
 
     if (!isValidReceipt(receipt)) {
-      return res.status(404).json({
-        success: false,
-        error: 'Transaction not found.',
-      });
+      return res.status(404).json({ success: false, error: 'Transaction not found.' });
     }
 
     return res.status(200).json({ success: true, data: receipt });
-  } catch (err: any) {
+  } catch (err) {
     clearTimeout(timeout);
-    if (err?.name === 'AbortError' || err?.name === 'TimeoutError') {
+    if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
       return res.status(504).json({
         success: false,
         error: 'Telebirr endpoint timed out. It may be blocking non-Ethiopian IPs.',
@@ -240,7 +226,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(502).json({
       success: false,
-      error: err?.message || 'Failed to fetch receipt from Telebirr.',
+      error: (err && err.message) || 'Failed to fetch receipt from Telebirr.',
     });
   }
-}
+};

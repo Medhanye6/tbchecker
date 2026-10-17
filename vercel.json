@@ -3,7 +3,7 @@
   "framework": null,
   "outputDirectory": "public",
   "functions": {
-    "api/**/*.ts": {
+    "api/**/*.js": {
       "maxDuration": 30
     }
   },

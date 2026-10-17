@@ -1,14 +1,11 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
 const MISTRAL_MODEL = 'ministral-14b-2512';
 
-const TXID_REGEX = /[A-Z0-9]{10}/;
 const LABEL_TXID_REGEX =
   /(?:Transaction\s*Number|Transaction\s*No|TXID|Transaction\s*ID|Receipt\s*No|የግዕዛን\s*ቁጥር|ግዕዛን\s*ቁጥር)\s*[:\-]?\s*([A-Z0-9]{10})/i;
 
-function extractTxid(text: string): string | null {
-  const upper = text.toUpperCase();
+function extractTxid(text) {
+  const upper = String(text).toUpperCase();
 
   const labelMatch = upper.match(LABEL_TXID_REGEX);
   if (labelMatch) return labelMatch[1];
@@ -23,7 +20,7 @@ function extractTxid(text: string): string | null {
   return null;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
@@ -36,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const imageBase64 = req.body?.image;
+  const imageBase64 = req.body && req.body.image;
   if (!imageBase64 || typeof imageBase64 !== 'string') {
     return res.status(400).json({
       success: false,
@@ -93,30 +90,29 @@ Return ONLY valid JSON, no markdown, no code blocks.`,
       });
     }
 
-    const result: any = await response.json();
-    const content = result?.choices?.[0]?.message?.content ?? '';
+    const result = await response.json();
+    const content =
+      (result && result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content) || '';
 
-    let parsed: { transaction_number?: string; found_label?: string; all_text?: string };
+    let parsed;
     try {
       parsed = JSON.parse(content);
-    } catch {
+    } catch (e) {
       const fallbackTxid = extractTxid(content);
       return res.status(200).json({
         success: !!fallbackTxid,
-        txid: fallbackTxid ?? '',
+        txid: fallbackTxid || '',
         rawText: content.slice(0, 4000),
       });
     }
 
     let txid = (parsed.transaction_number || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (!TXID_REGEX.test(txid)) {
+    if (!/^[A-Z0-9]{10}$/.test(txid)) {
       const fromText = extractTxid(parsed.all_text || content);
       if (fromText) txid = fromText;
     }
 
-    if (txid.length > 10) {
-      txid = txid.slice(0, 10);
-    }
+    if (txid.length > 10) txid = txid.slice(0, 10);
 
     return res.status(200).json({
       success: txid.length === 10,
@@ -124,10 +120,10 @@ Return ONLY valid JSON, no markdown, no code blocks.`,
       type: 'telebirr',
       rawText: (parsed.all_text || '').slice(0, 4000),
     });
-  } catch (err: any) {
+  } catch (err) {
     return res.status(502).json({
       success: false,
-      error: err?.message || 'OCR failed.',
+      error: (err && err.message) || 'OCR failed.',
     });
   }
-}
+};
