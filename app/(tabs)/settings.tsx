@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { COLORS } from '../../lib/theme';
 import { useLanguage } from '../../lib/useLanguage';
 import Constants from 'expo-constants';
@@ -17,6 +18,7 @@ export default function SettingsScreen() {
   const scheme = useColorScheme();
   const colors = COLORS[scheme === 'dark' ? 'dark' : 'light'];
   const { lang, setLang, t } = useLanguage();
+  const router = useRouter();
   const apiUrl = (Constants.expoConfig?.extra?.apiUrl as string) || 'https://tbchecker-appi.vercel.app';
 
   return (
@@ -73,6 +75,19 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* OCR Debug */}
+        <TouchableOpacity
+          style={[styles.section, styles.rowSection, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => router.push('/debug')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.sectionHeader, styles.sectionHeaderInline]}>
+            <Ionicons name="bug" size={20} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('ocrDebug')}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+
         {/* Version */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.sectionHeader}>
@@ -105,6 +120,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   sectionTitle: { fontSize: 16, fontWeight: '700' },
+  rowSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionHeaderInline: { marginBottom: 0 },
   optionsRow: { flexDirection: 'row', gap: 10 },
   optionBtn: {
     flex: 1,

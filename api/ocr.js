@@ -34,19 +34,23 @@ function isPlausibleTxid(s) {
   );
 }
 
-function extractTxid(text) {
+function analyzeText(text) {
   const upper = String(text).toUpperCase();
 
   const labelMatch = upper.match(LABEL_TXID_REGEX);
-  if (labelMatch && isLabeledTxid(labelMatch[1])) return labelMatch[1];
+  const labelOk = !!(labelMatch && isLabeledTxid(labelMatch[1]));
+  const matchedLabel = labelMatch
+    ? labelMatch[0].replace(labelMatch[1], '').replace(/[:\-#\s]+$/, '').trim() || null
+    : null;
 
-  const allMatches = upper.match(/[A-Z0-9]{10}(?![A-Z0-9])/g);
-  if (allMatches) {
-    const candidates = allMatches.filter(isPlausibleTxid);
-    if (candidates.length > 0) return candidates[0];
-  }
+  const allMatches = upper.match(/[A-Z0-9]{10}(?![A-Z0-9])/g) || [];
+  const candidates = allMatches.filter(isPlausibleTxid);
 
-  return null;
+  let txid = null;
+  if (labelOk) txid = labelMatch[1];
+  else if (candidates.length > 0) txid = candidates[0];
+
+  return { txid, candidates, matchedLabel };
 }
 
 module.exports = async function handler(req, res) {
@@ -114,12 +118,14 @@ module.exports = async function handler(req, res) {
         result.choices[0].message.content) ||
       '';
 
-    const txid = extractTxid(text) || '';
+    const { txid, candidates, matchedLabel } = analyzeText(text);
 
     return res.status(200).json({
-      success: txid.length === 10,
-      txid,
+      success: !!txid && txid.length === 10,
+      txid: txid || '',
       type: 'telebirr',
+      candidates,
+      matchedLabel,
       rawText: String(text).slice(0, 6000),
     });
   } catch (err) {

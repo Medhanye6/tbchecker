@@ -81,6 +81,17 @@ export const translations = {
     processing: 'Processing...',
     pleaseWait: 'Please wait...',
     tapToRetry: 'Tap to retry',
+
+    viewOcrResult: 'View OCR result',
+    ocrDebug: 'OCR Debug',
+    noOcrData: 'No OCR result yet. Scan a receipt first.',
+    rawOcrText: 'Raw OCR text',
+    ocrCandidates: 'Candidates',
+    ocrMatchedLabel: 'Matched label',
+    ocrDetectedTxid: 'Detected TXID',
+    showOcrText: 'Show OCR text',
+    hideOcrText: 'Hide OCR text',
+    noTextFound: '(no text found)',
   },
   am: {
     appName: 'ቲቢ ቼከር',
@@ -161,6 +172,17 @@ export const translations = {
     processing: 'በመስራት ላይ...',
     pleaseWait: 'እባክዎ ይጠብቁ...',
     tapToRetry: 'እንደገና ለማድረግ ይንኩ',
+
+    viewOcrResult: 'የOCR ውጤት ይመልከቱ',
+    ocrDebug: 'የOCR ማረሚያ',
+    noOcrData: 'እስካሁን የOCR ውጤት የለም። በመጀመሪያ ደረሰኝ ይፈትሹ።',
+    rawOcrText: 'የOCR ጥሬ ጽሑፍ',
+    ocrCandidates: 'ምርጫዎች',
+    ocrMatchedLabel: 'የተገኘ መለያ',
+    ocrDetectedTxid: 'የተገኘ TXID',
+    showOcrText: 'የOCR ጽሑፍ አሳይ',
+    hideOcrText: 'የOCR ጽሑፍ ደብቅ',
+    noTextFound: '(ጽሑፍ አልተገኘም)',
   },
 } as const;
 

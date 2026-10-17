@@ -14,6 +14,8 @@ export interface OcrResult {
   txid?: string;
   type?: string;
   rawText?: string;
+  candidates?: string[];
+  matchedLabel?: string | null;
   error?: string;
 }
 

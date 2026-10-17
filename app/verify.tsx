@@ -10,9 +10,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,14 +21,20 @@ import { COLORS } from '../lib/theme';
 import { useLanguage } from '../lib/useLanguage';
 import { verifyTelebirr, isValidTxid, normalizeTxid } from '../lib/api';
 import { saveToHistory } from '../lib/database';
+import { getLastOcrDebug } from '../lib/ocrDebug';
 
 export default function VerifyScreen() {
   const scheme = useColorScheme();
   const colors = COLORS[scheme === 'dark' ? 'dark' : 'light'];
   const { t } = useLanguage();
   const router = useRouter();
-  const [txid, setTxid] = useState('');
+  const params = useLocalSearchParams<{ initialTxid?: string; fromOcr?: string }>();
+  const [txid, setTxid] = useState(() =>
+    (params.initialTxid ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10)
+  );
   const [loading, setLoading] = useState(false);
+  const [showOcr, setShowOcr] = useState(false);
+  const ocrRecord = params.fromOcr === '1' ? getLastOcrDebug() : null;
 
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();
@@ -130,6 +137,62 @@ export default function VerifyScreen() {
               </>
             )}
           </TouchableOpacity>
+
+          {ocrRecord && (
+            <View style={styles.ocrBox}>
+              <TouchableOpacity
+                style={styles.ocrToggle}
+                onPress={() => setShowOcr((s) => !s)}
+              >
+                <Ionicons
+                  name={showOcr ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={colors.primary}
+                />
+                <Text style={[styles.ocrToggleText, { color: colors.primary }]}>
+                  {showOcr ? t('hideOcrText') : t('showOcrText')}
+                </Text>
+              </TouchableOpacity>
+
+              {showOcr && (
+                <View
+                  style={[
+                    styles.ocrCard,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                >
+                  {ocrRecord.error ? (
+                    <Text style={[styles.ocrMeta, { color: colors.danger }]}>
+                      {ocrRecord.error}
+                    </Text>
+                  ) : null}
+                  <Text style={[styles.ocrMeta, { color: colors.textSecondary }]}>
+                    {t('ocrCandidates')}:{' '}
+                    {ocrRecord.candidates?.length ? ocrRecord.candidates.join(', ') : '—'}
+                  </Text>
+                  <Text style={[styles.ocrMeta, { color: colors.textSecondary }]}>
+                    {t('ocrMatchedLabel')}: {ocrRecord.matchedLabel || '—'}
+                  </Text>
+                  <ScrollView style={styles.ocrScroll} nestedScrollEnabled>
+                    <Text style={[styles.ocrRaw, { color: colors.text }]} selectable>
+                      {ocrRecord.rawText && ocrRecord.rawText.trim().length
+                        ? ocrRecord.rawText
+                        : t('noTextFound')}
+                    </Text>
+                  </ScrollView>
+                  <TouchableOpacity
+                    style={[styles.ocrBtn, { borderColor: colors.border }]}
+                    onPress={() => router.push('/debug')}
+                  >
+                    <Ionicons name="bug" size={16} color={colors.primary} />
+                    <Text style={[styles.ocrBtnText, { color: colors.primary }]}>
+                      {t('viewOcrResult')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -177,4 +240,28 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   verifyBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
+  ocrBox: { width: '100%', marginTop: 18, alignItems: 'center' },
+  ocrToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8 },
+  ocrToggleText: { fontSize: 13, fontWeight: '600' },
+  ocrCard: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 6,
+  },
+  ocrMeta: { fontSize: 12, marginBottom: 4 },
+  ocrScroll: { maxHeight: 160, marginTop: 8 },
+  ocrRaw: { fontSize: 12, lineHeight: 17, fontFamily: 'monospace' },
+  ocrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+  },
+  ocrBtnText: { fontSize: 13, fontWeight: '700' },
 });

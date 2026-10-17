@@ -20,6 +20,7 @@ import { COLORS } from '../../lib/theme';
 import { useLanguage } from '../../lib/useLanguage';
 import { ocrImage, verifyTelebirr, isValidTxid } from '../../lib/api';
 import { saveToHistory } from '../../lib/database';
+import { setLastOcrDebug } from '../../lib/ocrDebug';
 
 export default function HomeScreen() {
   const scheme = useColorScheme();
@@ -40,19 +41,27 @@ export default function HomeScreen() {
       try {
         setStatusText(t('extracting'));
         const ocrResult = await ocrImage(base64);
+        setLastOcrDebug({ ...ocrResult, imageUri: uri, at: Date.now() });
 
         let txid = ocrResult.txid?.toUpperCase().trim() ?? '';
 
         if (!txid || !isValidTxid(txid)) {
           setLoading(false);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          const guess = ocrResult.candidates?.[0] ?? '';
           Alert.alert(
             t('txidNotFound'),
             t('txidNotFoundDesc'),
             [
               { text: t('cancel'), style: 'cancel' },
+              { text: t('viewOcrResult'), onPress: () => router.push('/debug') },
               {
                 text: t('manualEntry'),
-                onPress: () => router.push('/verify'),
+                onPress: () =>
+                  router.push({
+                    pathname: '/verify',
+                    params: { initialTxid: guess, fromOcr: '1' },
+                  }),
               },
             ]
           );
