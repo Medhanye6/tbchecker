@@ -1,20 +1,49 @@
-const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
-const MISTRAL_MODEL = 'ministral-14b-2512';
+const MISTRAL_CHAT_URL = 'https://api.mistral.ai/v1/chat/completions';
+const MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
+
+const TRANSCRIBE_PROMPT = `Transcribe ALL text visible in this image exactly as shown, preserving line breaks and order. This is usually an Ethiopian Telebirr payment receipt, which may be in Amharic, Tigrinya, Afaan Oromoo, or English.
+
+Output ONLY the transcription text. Do not add commentary, summaries, or explanations.`;
 
 const LABEL_TXID_REGEX =
-  /(?:Transaction\s*Number|Transaction\s*No|TXID|Transaction\s*ID|Receipt\s*No|የግዕዛን\s*ቁጥር|ግዕዛን\s*ቁጥር)\s*[:\-]?\s*([A-Z0-9]{10})/i;
+  /(?:Transaction\s*Number|Transaction\s*No|Transaction\s*ID|TXID|Receipt\s*No|Invoice\s*No\.?|የግዕዛን\s*ቁጥር|ግዕዛን\s*ቁጥር|የክፍያ\s*ቁጥር|የግብይት\s*ቁጥር)\s*[:#\-]?\s*([A-Z0-9]{10})(?![A-Z0-9])/i;
+
+const BLOCKED_TXID_WORDS = new Set([
+  'TRANSACTION',
+  'TRANSACTIONN',
+  'RECEIPTNO',
+  'TELEBIRR',
+  'COMPLETED',
+  'CANCELLED',
+  'ETHIOPIA',
+  'CUSTOMER',
+  'INVOICENO',
+  'PAYMENTDAT',
+]);
+
+function isLabeledTxid(s) {
+  return /^[A-Z0-9]{10}$/.test(s) && !BLOCKED_TXID_WORDS.has(s);
+}
+
+function isPlausibleTxid(s) {
+  return (
+    /^[A-Z0-9]{10}$/.test(s) &&
+    /[0-9]/.test(s) &&
+    /[A-Z]/.test(s) &&
+    !BLOCKED_TXID_WORDS.has(s)
+  );
+}
 
 function extractTxid(text) {
   const upper = String(text).toUpperCase();
 
   const labelMatch = upper.match(LABEL_TXID_REGEX);
-  if (labelMatch) return labelMatch[1];
+  if (labelMatch && isLabeledTxid(labelMatch[1])) return labelMatch[1];
 
-  const allMatches = upper.match(/[A-Z0-9]{10}/g);
-  if (allMatches && allMatches.length > 0) {
-    const hasDigits = allMatches.filter((m) => /\d/.test(m));
-    if (hasDigits.length > 0) return hasDigits[0];
-    return allMatches[0];
+  const allMatches = upper.match(/[A-Z0-9]{10}(?![A-Z0-9])/g);
+  if (allMatches) {
+    const candidates = allMatches.filter(isPlausibleTxid);
+    if (candidates.length > 0) return candidates[0];
   }
 
   return null;
@@ -41,8 +70,12 @@ module.exports = async function handler(req, res) {
     });
   }
 
+  const dataUrl = imageBase64.startsWith('data:')
+    ? imageBase64
+    : `data:image/jpeg;base64,${imageBase64}`;
+
   try {
-    const response = await fetch(MISTRAL_API_URL, {
+    const response = await fetch(MISTRAL_CHAT_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -54,29 +87,11 @@ module.exports = async function handler(req, res) {
           {
             role: 'user',
             content: [
-              {
-                type: 'image_url',
-                image_url: `data:image/jpeg;base64,${imageBase64}`,
-              },
-              {
-                type: 'text',
-                text: `You are an OCR assistant for Ethiopian Telebirr payment receipts. Extract data from this receipt image.
-
-The receipt may be in Amharic (አማርኛ), Tigrinya (ትግርኛ), Afaan Oromoo, English, or a mix.
-
-Find the "Transaction Number" (labeled as "Transaction Number", "Transaction No", "የግዕዛን ቁጥር", or similar). It is a 10-character alphanumeric string, always uppercase.
-
-Return a JSON object with:
-- "transaction_number": the 10-char alphanumeric TXID (uppercase). Empty string if not found.
-- "found_label": the exact label text you found near the transaction number. Empty string if not found.
-- "all_text": the full OCR text extracted from the image.
-
-Return ONLY valid JSON, no markdown, no code blocks.`,
-              },
+              { type: 'image_url', image_url: dataUrl },
+              { type: 'text', text: TRANSCRIBE_PROMPT },
             ],
           },
         ],
-        response_format: { type: 'json_object' },
         temperature: 0,
         max_tokens: 2000,
       }),
@@ -91,34 +106,21 @@ Return ONLY valid JSON, no markdown, no code blocks.`,
     }
 
     const result = await response.json();
-    const content =
-      (result && result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content) || '';
+    const text =
+      (result &&
+        result.choices &&
+        result.choices[0] &&
+        result.choices[0].message &&
+        result.choices[0].message.content) ||
+      '';
 
-    let parsed;
-    try {
-      parsed = JSON.parse(content);
-    } catch (e) {
-      const fallbackTxid = extractTxid(content);
-      return res.status(200).json({
-        success: !!fallbackTxid,
-        txid: fallbackTxid || '',
-        rawText: content.slice(0, 4000),
-      });
-    }
-
-    let txid = (parsed.transaction_number || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (!/^[A-Z0-9]{10}$/.test(txid)) {
-      const fromText = extractTxid(parsed.all_text || content);
-      if (fromText) txid = fromText;
-    }
-
-    if (txid.length > 10) txid = txid.slice(0, 10);
+    const txid = extractTxid(text) || '';
 
     return res.status(200).json({
       success: txid.length === 10,
       txid,
       type: 'telebirr',
-      rawText: (parsed.all_text || '').slice(0, 4000),
+      rawText: String(text).slice(0, 6000),
     });
   } catch (err) {
     return res.status(502).json({
