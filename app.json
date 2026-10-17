@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Tb Checker",
+    "slug": "tb-checker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "tbchecker",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tbchecker.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Tb Checker needs camera access to scan Telebirr receipt screenshots.",
+        "NSPhotoLibraryUsageDescription": "Tb Checker needs photo library access to pick Telebirr receipt screenshots."
+      }
+    },
+    "android": {
+      "package": "com.tbchecker.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-status-bar",
+      "expo-sharing",
+      "expo-image",
+      "expo-font",
+      "expo-splash-screen",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Tb Checker needs access to your photos to scan Telebirr receipts.",
+          "cameraPermission": "Tb Checker needs camera access to scan Telebirr receipts."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Tb Checker needs camera access to scan Telebirr receipts."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "https://tb-checker-api.vercel.app"
+    }
+  }
+}
