@@ -35,22 +35,10 @@
     },
     "plugins": [
       "expo-router",
-      "expo-sqlite",
-      "expo-status-bar",
-      "expo-sharing",
-      "expo-image",
-      "expo-font",
-      "expo-splash-screen",
       [
         "expo-image-picker",
         {
           "photosPermission": "Tb Checker needs access to your photos to scan Telebirr receipts.",
-          "cameraPermission": "Tb Checker needs camera access to scan Telebirr receipts."
-        }
-      ],
-      [
-        "expo-camera",
-        {
           "cameraPermission": "Tb Checker needs camera access to scan Telebirr receipts."
         }
       ]
