@@ -1,9 +1,7 @@
 const MISTRAL_CHAT_URL = 'https://api.mistral.ai/v1/chat/completions';
 const MISTRAL_MODEL = process.env.MISTRAL_MODEL || 'mistral-small-latest';
 
-const TRANSCRIBE_PROMPT = `Transcribe ALL text visible in this image exactly as shown, preserving line breaks and order. This is usually an Ethiopian Telebirr payment receipt, which may be in Amharic, Tigrinya, Afaan Oromoo, or English.
-
-Output ONLY the transcription text. Do not add commentary, summaries, or explanations.`;
+const TRANSCRIBE_PROMPT = You are reading an Ethiopian Telebirr payment receipt image. Extract the 10-character Transaction Number (TXID) and transcribe all visible text. The TXID appears after labels: Transaction Number, Transaction No, Transaction ID, TXID, Receipt No, Invoice No, or Amharic equivalents. The TXID is exactly 10 uppercase letters/digits with at least one digit and one letter. Respond with JSON only: {txid: 10-char TXID or empty, rawText: full transcription}. Do not add any other text.;
 
 const LABEL_TXID_REGEX =
   /(?:Transaction\s*Number|Transaction\s*No|Transaction\s*ID|TXID|Receipt\s*No|Invoice\s*No\.?|የግዕዛን\s*ቁጥር|ግዕዛን\s*ቁጥር|የክፍያ\s*ቁጥር|የግብይት\s*ቁጥር)\s*[:#\-]?\s*([A-Z0-9]{10})(?![A-Z0-9])/i;
@@ -110,7 +108,7 @@ module.exports = async function handler(req, res) {
     }
 
     const result = await response.json();
-    const text =
+    const content =
       (result &&
         result.choices &&
         result.choices[0] &&
@@ -118,11 +116,20 @@ module.exports = async function handler(req, res) {
         result.choices[0].message.content) ||
       '';
 
+    let text = content;
+    let parsedTxid = '';
+    try {
+      const j = JSON.parse(content.replace(/`json|`/g, '').trim());
+      if (j && typeof j.txid === 'string') { parsedTxid = j.txid.trim().toUpperCase(); }
+      if (j && typeof j.rawText === 'string') { text = j.rawText; }
+    } catch (e) {}
+
     const { txid, candidates, matchedLabel } = analyzeText(text);
+    const finalTxid = (parsedTxid && /^[A-Z0-9]{10}$/.test(parsedTxid)) ? parsedTxid : txid;
 
     return res.status(200).json({
-      success: !!txid && txid.length === 10,
-      txid: txid || '',
+      success: !!finalTxid && finalTxid.length === 10,
+      txid: finalTxid || '',
       type: 'telebirr',
       candidates,
       matchedLabel,
